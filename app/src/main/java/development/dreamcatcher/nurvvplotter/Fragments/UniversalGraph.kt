@@ -17,8 +17,12 @@ import android.graphics.Color
 
 class UniversalGraph : Fragment() {
 
-    val seriesToLoad = LinkedList<LineGraphSeries<DataPoint>>()
-    val valueDescriptionsToLoad = LinkedList<Int>()
+    private val seriesToLoad = LinkedList<LineGraphSeries<DataPoint>>()
+    private val valueDescriptionsToLoad = LinkedList<Int>()
+    private val verticalPointerLineSeries = LineGraphSeries<DataPoint>()
+
+    private var verticalTopPoint: Double? = null
+    private var verticalBottomPoint: Double? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.graph_fragment_layout, container, false)
@@ -27,28 +31,35 @@ class UniversalGraph : Fragment() {
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        // Upload data series into the graph.
         seriesToLoad.forEachIndexed { index, dataSeries ->
-        //for (dataSeries in seriesToLoad) {
+
+            initializeVerticalPointerLine()
+
+            // Upload data series into the graph.
             graph.addSeries(dataSeries)
 
             // Add TextView for current value displaying.
             val viewInflater = context?.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
             val viewRow = viewInflater.inflate(R.layout.current_value_row, null)
-            val textView = viewRow.findViewById(R.id.text_view_curent_value_row) as TextView
+            val currentValueText = viewRow.findViewById(R.id.current_value_text) as TextView
+            val currentValueColorPreview = viewRow.findViewById(R.id.current_value_color_preview) as View
             val valueDescriptionId = valueDescriptionsToLoad[index]
-            textView.text = getString(valueDescriptionId, -1)
+            currentValueText.text = getString(valueDescriptionId, -1)
             this.current_values_section.addView(viewRow)
 
             // Set color of this data series.
             val colorId = getRandomColorNumber()
             dataSeries.color = colorId
-            textView.setTextColor(colorId)
+            currentValueText.setTextColor(colorId)
+            currentValueColorPreview.setBackgroundColor(colorId)
 
             // Set the listener that will be updating current value.
-            dataSeries.setOnDataPointTapListener{ series, dataPoint ->
+            dataSeries.setOnDataPointTapListener{ _, dataPoint ->
                 val newDescriptiveValue = getString(valueDescriptionId, dataPoint.y.toInt())
-                textView.text = newDescriptiveValue
+                currentValueText.text = newDescriptiveValue
+
+                // Update position of the vertical pointer line.
+                updateVerticalPointerLine(dataPoint.x)
             }
         }
 
@@ -70,14 +81,29 @@ class UniversalGraph : Fragment() {
             val dataPoint = DataPoint(value.toDouble(), valuesY[index].toDouble())
 
             // Attach created points to the series list.
-            dataSeries.appendData(dataPoint, true, 100, false);
+            dataSeries.appendData(dataPoint, true, 100, false)
         }
 
         // Add series into the loading list.
         seriesToLoad.add(dataSeries)
     }
 
-    fun getRandomColorNumber() : Int {
+    private fun initializeVerticalPointerLine() {
+        verticalBottomPoint = graph.viewport.getMinY(true)
+        verticalTopPoint = graph.viewport.getMaxY(true)
+        verticalPointerLineSeries.thickness = 2
+        graph.addSeries(verticalPointerLineSeries)
+        val middlePoint = (graph.viewport.getMinX(true) + graph.viewport.getMaxX(true)) / 2.0
+        updateVerticalPointerLine(middlePoint)
+    }
+
+    private fun updateVerticalPointerLine(position: Double) {
+        val topPoint = DataPoint(position, verticalTopPoint!!)
+        val bottomPoint = DataPoint(position, verticalBottomPoint!!)
+        verticalPointerLineSeries.resetData(arrayOf(bottomPoint, topPoint))
+    }
+
+    private fun getRandomColorNumber() : Int {
         val rnd = Random()
         return Color.argb(255, rnd.nextInt(128), rnd.nextInt(128), rnd.nextInt(128))
     }
